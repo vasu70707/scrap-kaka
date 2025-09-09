@@ -1,0 +1,407 @@
+import React, { useEffect, useMemo, useState } from "react";
+
+// Scrap Kaka — Single-file React landing page (previewable in ChatGPT canvas)
+// - Modern, mobile-first landing site
+// - Fake live prices (client-side simulation). Replace with Socket.IO/Web API later.
+// - Pickup request form (no backend; logs to console)
+// - Sections: Hero, Live Prices, How It Works, Benefits, Request Pickup, Testimonials, FAQ, Footer
+// 
+// Deploy ideas: export to any React/Vite app, or convert to static HTML.
+
+const CURRENCIES = { INR: "₹", USD: "$" };
+
+const starterPrices = {
+  Copper: { price: 748, unit: "kg" },
+  Aluminium: { price: 212, unit: "kg" },
+  Brass: { price: 518, unit: "kg" },
+  Plastic: { price: 26, unit: "kg" },
+  Paper: { price: 14, unit: "kg" },
+  Iron: { price: 37, unit: "kg" }
+};
+
+function useSimulatedPrices(base) {
+  const [prices, setPrices] = useState(base);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPrices((prev) => {
+        const next = { ...prev };
+        for (const k of Object.keys(next)) {
+          const p = next[k].price;
+          const pct = (Math.random() * 2.2 - 1.1) / 100; // -1.1%..+1.1%
+          const mutated = Math.max(1, Math.round(p * (1 + pct)));
+          next[k] = { ...next[k], price: mutated };
+        }
+        return next;
+      });
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  return prices;
+}
+
+function Section({ id, title, subtitle, children }) {
+  return (
+    <section id={id} className="py-14 md:py-20">
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="mb-8">
+          {title && (
+            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+              {title}
+            </h2>
+          )}
+          {subtitle && (
+            <p className="text-sm md:text-base text-gray-600 mt-2">{subtitle}</p>
+          )}
+        </div>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function Pill({ children }) {
+  return (
+    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+      {children}
+    </span>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <div className="p-4 rounded-2xl border bg-white shadow-sm">
+      <div className="text-2xl md:text-3xl font-extrabold">{value}</div>
+      <div className="text-gray-500 text-sm mt-1">{label}</div>
+    </div>
+  );
+}
+
+function PriceCard({ name, price, unit, symbol }) {
+  return (
+    <div className="rounded-2xl border bg-white p-4 shadow-sm hover:shadow-md transition">
+      <div className="flex items-center justify-between">
+        <div className="font-semibold">{name}</div>
+        <Pill>per {unit}</Pill>
+      </div>
+      <div className="mt-4 text-2xl font-extrabold">
+        {symbol}
+        {price}
+      </div>
+      <div className="mt-2 text-xs text-gray-500">Real-time indicative price</div>
+    </div>
+  );
+}
+
+function HowCard({ step, title, desc }) {
+  return (
+    <div className="rounded-2xl border bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-9 rounded-full bg-black text-white flex items-center justify-center font-bold">
+          {step}
+        </div>
+        <div className="font-semibold text-lg">{title}</div>
+      </div>
+      <p className="text-gray-600 text-sm mt-2">{desc}</p>
+    </div>
+  );
+}
+
+function Input({ label, ...props }) {
+  return (
+    <label className="block">
+      <span className="text-sm text-gray-700">{label}</span>
+      <input
+        {...props}
+        className="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+      />
+    </label>
+  );
+}
+
+function Select({ label, options, ...props }) {
+  return (
+    <label className="block">
+      <span className="text-sm text-gray-700">{label}</span>
+      <select
+        {...props}
+        className="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 focus:ring-black/10 bg-white"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CTAButton({ children, ...props }) {
+  return (
+    <button
+      {...props}
+      className="inline-flex items-center justify-center rounded-xl bg-black text-white px-4 py-2 font-semibold hover:opacity-90 active:opacity-80"
+    >
+      {children}
+    </button>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function Benefit({ title, desc }) {
+  return (
+    <div className="flex gap-3 items-start">
+      <div className="mt-1 text-emerald-600">
+        <CheckIcon />
+      </div>
+      <div>
+        <div className="font-semibold">{title}</div>
+        <div className="text-sm text-gray-600">{desc}</div>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [currency, setCurrency] = useState("INR");
+  const symbol = CURRENCIES[currency];
+  const base = useMemo(() => starterPrices, []);
+  const prices = useSimulatedPrices(base);
+
+  // Pickup form state
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    pincode: "",
+    category: "Copper",
+    weight: "",
+    date: "",
+  });
+  const [submitted, setSubmitted] = useState(false);
+
+  function submitPickup(e) {
+    e.preventDefault();
+    setSubmitted(true);
+    // Here you would POST to your backend
+    console.log("Pickup Request →", form);
+    setTimeout(() => setSubmitted(false), 2000);
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 text-gray-900">
+      {/* Nav */}
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-9 rounded-xl bg-black text-white flex items-center justify-center font-extrabold">SK</div>
+            <div className="font-extrabold tracking-tight">Scrap Kaka</div>
+          </div>
+          <nav className="hidden md:flex items-center gap-6 text-sm">
+            <a href="#prices" className="hover:opacity-70">Live Prices</a>
+            <a href="#how" className="hover:opacity-70">How it works</a>
+            <a href="#pickup" className="hover:opacity-70">Request Pickup</a>
+            <a href="#faq" className="hover:opacity-70">FAQ</a>
+          </nav>
+          <div className="flex items-center gap-2">
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className="rounded-lg border px-2 py-1 text-sm"
+            >
+              <option value="INR">INR</option>
+              <option value="USD">USD</option>
+            </select>
+            <a href="#pickup" className="hidden md:inline-flex"><CTAButton>Sell Scrap</CTAButton></a>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="relative">
+        <div className="max-w-6xl mx-auto px-4 py-14 md:py-20 grid md:grid-cols-2 gap-10 items-center">
+          <div>
+            <Pill>Trusted neighbourhood recycler</Pill>
+            <h1 className="mt-4 text-3xl md:text-5xl font-extrabold leading-tight tracking-tight">
+              Sell scrap at the <span className="underline decoration-emerald-400">best live price</span>, hassle‑free.
+            </h1>
+            <p className="mt-4 text-gray-600">
+              Scrap Kaka picks up your scrap from your doorstep, pays instantly, and recycles responsibly. Live price updates keep things transparent.
+            </p>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <a href="#pickup"><CTAButton>Request a Pickup</CTAButton></a>
+              <a href="#prices" className="inline-flex items-center justify-center rounded-xl border px-4 py-2 font-semibold hover:bg-gray-50">View Live Prices</a>
+            </div>
+            <div className="mt-6 grid grid-cols-3 gap-3">
+              <Stat label="Happy Sellers" value="25k+" />
+              <Stat label="KG Recycled" value="8M+" />
+              <Stat label="Cities" value="20+" />
+            </div>
+          </div>
+          <div className="relative">
+            <div className="rounded-3xl border bg-white p-4 shadow-xl">
+              <div className="rounded-2xl bg-gradient-to-br from-gray-900 to-black p-6 text-white">
+                <div className="text-sm opacity-80">Live Ticker</div>
+                <div className="mt-3 space-y-2">
+                  {Object.entries(prices).slice(0, 4).map(([k, v]) => (
+                    <div key={k} className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-2">
+                      <div className="text-sm">{k}</div>
+                      <div className="font-extrabold">{symbol}{v.price}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 text-xs opacity-75">Auto‑refreshes every 3 seconds</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Prices */}
+      <Section id="prices" title="Live Scrap Prices" subtitle="Indicative rates. Final rate depends on purity, quantity and locality.">
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {Object.entries(prices).map(([name, v]) => (
+            <PriceCard key={name} name={name} price={v.price} unit={v.unit} symbol={symbol} />
+          ))}
+        </div>
+      </Section>
+
+      {/* How it works */}
+      <Section id="how" title="How Scrap Kaka works" subtitle="Fast, fair and friendly in three simple steps.">
+        <div className="grid md:grid-cols-3 gap-4">
+          <HowCard step={1} title="Request a pickup" desc="Choose category, enter weight estimate and your address. We’ll schedule a pickup." />
+          <HowCard step={2} title="On‑spot weighing" desc="Our agent visits, weighs your scrap and confirms the best live price." />
+          <HowCard step={3} title="Instant payment" desc="Receive cash/UPI immediately. We recycle your scrap responsibly." />
+        </div>
+      </Section>
+
+      {/* Benefits */}
+      <Section id="benefits" title="Why choose Scrap Kaka?">
+        <div className="grid md:grid-cols-2 gap-6">
+          <Benefit title="Transparent live prices" desc="No hidden cuts. See rates update in real time." />
+          <Benefit title="Doorstep convenience" desc="Pickups when you want—home or office." />
+          <Benefit title="Eco‑friendly recycling" desc="Partners with authorized recyclers only." />
+          <Benefit title="Business & bulk support" desc="Special pricing for apartments, shops and MSMEs." />
+        </div>
+      </Section>
+
+      {/* Request Pickup */}
+      <Section id="pickup" title="Request a Pickup" subtitle="Fill the form—our team will confirm your slot over WhatsApp or call.">
+        <div className="grid md:grid-cols-5 gap-6">
+          <form onSubmit={submitPickup} className="md:col-span-3 p-5 rounded-2xl border bg-white shadow-sm">
+            <div className="grid md:grid-cols-2 gap-4">
+              <Input label="Full Name" value={form.name} onChange={(e)=>setForm({...form, name:e.target.value})} placeholder="Your name" required />
+              <Input label="Phone (WhatsApp)" value={form.phone} onChange={(e)=>setForm({...form, phone:e.target.value})} placeholder="10-digit number" required />
+              <Input label="Pincode" value={form.pincode} onChange={(e)=>setForm({...form, pincode:e.target.value})} placeholder="e.g., 281001" required />
+              <Select label="Category" value={form.category} onChange={(e)=>setForm({...form, category:e.target.value})} options={Object.keys(prices).map(k=>({label:k, value:k}))} />
+              <Input label={`Estimated Weight (${prices[form.category]?.unit||'kg'})`} value={form.weight} onChange={(e)=>setForm({...form, weight:e.target.value})} placeholder="e.g., 12" required />
+              <Input label="Preferred Date" type="date" value={form.date} onChange={(e)=>setForm({...form, date:e.target.value})} required />
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <CTAButton type="submit">Confirm Pickup</CTAButton>
+              {submitted && <span className="text-emerald-600 text-sm">Request received! We’ll confirm soon.</span>}
+            </div>
+            <p className="text-xs text-gray-500 mt-3">Submitting will not charge you. We’ll contact to verify time and address.</p>
+          </form>
+
+          <div className="md:col-span-2 p-5 rounded-2xl border bg-white shadow-sm">
+            <div className="font-semibold">Today’s Highlights</div>
+            <ul className="mt-3 space-y-2 text-sm">
+              <li className="flex items-center justify-between">
+                <span>Highest Rate</span>
+                <span className="font-semibold">Copper — {symbol}{prices.Copper.price}</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span>Most Traded</span>
+                <span className="font-semibold">Aluminium & Paper</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span>Eco Impact</span>
+                <span className="font-semibold">~3.1 kg CO₂ saved / kg Al</span>
+              </li>
+            </ul>
+            <div className="mt-5 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
+              Pro tip: Bulk sellers (societies, offices) get better slab rates. Ask for a quote!
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* Testimonials */}
+      <Section id="testimonials" title="Loved by households & businesses">
+        <div className="grid md:grid-cols-3 gap-4">
+          {["Super smooth pickup and instant UPI!","Fair rates—showed price changes live.","Great for our apartment drives."].map((t, i)=> (
+            <div key={i} className="rounded-2xl border bg-white p-5 shadow-sm">
+              <div className="text-sm text-gray-700">“{t}”</div>
+              <div className="mt-3 text-xs text-gray-500">— Verified Seller</div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* FAQ */}
+      <Section id="faq" title="FAQs" subtitle="Can’t find what you’re looking for? Message us on WhatsApp.">
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+            <div className="font-semibold">Are prices fixed?</div>
+            <div className="text-sm text-gray-600 mt-1">Prices are indicative and move with market. Final rate is confirmed on‑spot after weighing and quality check.</div>
+          </div>
+          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+            <div className="font-semibold">Which areas do you serve?</div>
+            <div className="text-sm text-gray-600 mt-1">We’re expanding city by city. Enter your pincode in the pickup form to check coverage.</div>
+          </div>
+          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+            <div className="font-semibold">How do I get paid?</div>
+            <div className="text-sm text-gray-600 mt-1">Instantly via UPI, bank transfer or cash—your choice.</div>
+          </div>
+          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+            <div className="font-semibold">Do you handle bulk or B2B?</div>
+            <div className="text-sm text-gray-600 mt-1">Yes—societies, schools, stores and MSMEs get slab pricing and scheduled drives.</div>
+          </div>
+        </div>
+      </Section>
+
+      {/* Footer */}
+      <footer className="border-t">
+        <div className="max-w-6xl mx-auto px-4 py-10 grid md:grid-cols-4 gap-6 text-sm">
+          <div>
+            <div className="font-extrabold">Scrap Kaka</div>
+            <p className="text-gray-600 mt-2">Turning waste into value—responsibly.</p>
+          </div>
+          <div>
+            <div className="font-semibold">Company</div>
+            <ul className="mt-2 space-y-2 text-gray-600">
+              <li><a href="#how" className="hover:opacity-70">How it works</a></li>
+              <li><a href="#prices" className="hover:opacity-70">Live Prices</a></li>
+              <li><a href="#pickup" className="hover:opacity-70">Request Pickup</a></li>
+            </ul>
+          </div>
+          <div>
+            <div className="font-semibold">Legal</div>
+            <ul className="mt-2 space-y-2 text-gray-600">
+              <li>Terms of Service</li>
+              <li>Privacy Policy</li>
+            </ul>
+          </div>
+          <div>
+            <div className="font-semibold">Contact</div>
+            <ul className="mt-2 space-y-2 text-gray-600">
+              <li>Email: hello@scrapkaka.in</li>
+              <li>WhatsApp: +91 90000 00000</li>
+              <li>Mon–Sat, 9 AM–7 PM</li>
+            </ul>
+          </div>
+        </div>
+        <div className="border-t text-center text-xs text-gray-500 py-6">© {new Date().getFullYear()} Scrap Kaka. All rights reserved.</div>
+      </footer>
+    </div>
+  );
+}
